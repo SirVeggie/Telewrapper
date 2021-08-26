@@ -1,0 +1,15 @@
+{
+  "name": "telewrapper",
+  "version": "1.0.0",
+  "description": "A higher level wrapper for the node telegram bot api",
+  "main": "telegramBot.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Veikka Pulsa",
+  "license": "MIT",
+  "dependencies": {
+    "@types/node-telegram-bot-api": "^0.51.4",
+    "node-telegram-bot-api": "^0.54.0"
+  }
+}
