@@ -2,14 +2,29 @@
   "name": "telewrapper",
   "version": "1.0.0",
   "description": "A higher level wrapper for the node telegram bot api",
-  "main": "telegramBot.ts",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "author": "Veikka Pulsa",
   "license": "MIT",
+  "homepage": "https://github.com/SirVeggie/Telewrapper",
+  "keywords": ["telegram", "bot", "api", "wrapper"],
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SirVeggie/Telewrapper.git"
+  },
   "dependencies": {
     "@types/node-telegram-bot-api": "^0.51.4",
     "node-telegram-bot-api": "^0.54.0"
-  }
+  },
+  "devDependencies": {
+    "typescript": "^4.3.5"
+  },
+  "files": [
+    "lib/**/*"
+  ]
 }
