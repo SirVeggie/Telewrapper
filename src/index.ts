@@ -46,8 +46,8 @@ const main = {
     validChats: [] as number[],
     debugChat: 0,
 
-    commandList: {} as { [index: string]: ICommand },
-    buttonList: {} as { [index: string]: IButtonCmd },
+    commandList: {} as { [index: string]: ICommand; },
+    buttonList: {} as { [index: string]: IButtonCmd; },
     keywordList: [] as IKeywordCmd[],
     regexCmdList: [] as IRegexCmd[],
     messageList: [] as TelegramBot.Message[],
@@ -98,13 +98,13 @@ function start(api_key: string, debugChatId: number, ctorOptions?: TelegramBot.C
     main.startTime = new Date();
     main.debugChat = debugChatId;
     main.validChats = [main.debugChat];
-    
+
     ctorOptions = ctorOptions ? ctorOptions : {};
     ctorOptions.polling = ctorOptions.polling ? ctorOptions.polling : true;
     main.core = new TelegramBot(api_key, ctorOptions);
-    
+
     main.core.getMe().then(user => main.botInfo = user);
-    
+
     botEventSubscriptions();
 }
 
@@ -398,7 +398,7 @@ function kButton(text: string): TelegramBot.KeyboardButton {
 
 function iButton(name: string, action: (query: TelegramBot.CallbackQuery) => string | void | Promise<void>): TelegramBot.InlineKeyboardButton {
     (iButton as any).counter = (iButton as any).counter || 0;
-    
+
     const data = 'btn_' + ++(iButton as any).counter;
     onButton(data, action);
     return { text: name, callback_data: data };
@@ -485,30 +485,32 @@ function validCommand(msg: TelegramBot.Message, chatIDs: number[] | number, keyw
     }
 
     const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
+    const valid = main.validChats.includes(msg.chat.id);
 
-    if (ids.includes(msg.chat.id)) {
+    if (ids.includes(msg.chat.id))
         return true;
-    }
-
-    if (main.validChats.includes(msg.chat.id)) {
-        if (keyword) {
-            return false;
-        }
-
-        logger.log('Received command from a chat that doesn\'t support it: ' + '\nMessage: ' + msg.text, msg.chat);
-
-        if (main.debugChat != 0) {
-            sendMessage('Received command from a chat that doesn\'t support it: ' + JSON.stringify(msg.chat) + '\nMessage: ' + msg.text, main.debugChat);
-        }
-    } else {
-        logger.log('Received message from unregistered chat: ' + '\nMessage: ' + msg.text, msg.chat);
-
-        if (main.debugChat != 0) {
-            sendMessage('Received message from unregistered chat: ' + JSON.stringify(msg.chat) + '\nMessage: ' + msg.text, main.debugChat);
-        }
-    }
-
+    if (valid && keyword)
+        return false;
+    reportInvalidCommand(msg, valid);
     return false;
+}
+
+function reportInvalidCommand(msg: TelegramBot.Message, validChat: boolean): void {
+    if (validChat) {
+        const user = msg.from ? `${msg.from.first_name} ${msg.from.last_name ?? '(no surname)'} | ${msg.from.username ?? '(no username)'}` : 'Unknown';
+        const start = 'Received command from a chat that doesn\'t support it: ';
+        const end = '\nUser: ' + user + '\nMessage: ' + msg.text;
+
+        if (main.debugChat != 0)
+            sendMessage(start + JSON.stringify(msg.chat) + end, main.debugChat);
+        logger.log(start + end, msg.chat);
+    } else {
+        const start = 'Received message from unregistered chat: ';
+        const end = '\nMessage: ' + msg.text;
+        if (main.debugChat != 0)
+            sendMessage(start + JSON.stringify(msg.chat) + end, main.debugChat);
+        logger.log(start + end, msg.chat);
+    }
 }
 //#endregion
 
