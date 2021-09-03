@@ -158,26 +158,13 @@ function botEventSubscriptions() {
                 return;
             }
 
-            // check and call all matching keywords
-            let found = false;
-
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             for (const [key, value] of Object.entries(main.keywordList)) {
                 if (value.regex.exec(msg.text)) {
                     value.callback(msg);
-                    found = true;
                 }
             }
-
-            if (found) {
-                return;
-            }
-
-            // indicator if a message was not any command in debug chat
-            if (msg.chat.id == main.debugChat && main.debugChat != 0) {
-                sendMessage('Not valid: ' + msg.text, main.debugChat);
-            }
-
+            
         } catch (error) {
             sendError('message error', error);
         }
