@@ -74,6 +74,7 @@ const main = {
     sendReply,
     sendKeyboard,
     clearKeyboard,
+    clearInline,
     sendPoll,
     sendDice,
 
@@ -339,6 +340,10 @@ async function clearKeyboard(chatID: number, selective: boolean = false): Promis
 
     const msg = await sendMessageBase('.', chatID, options);
     await deleteMessage(msg);
+}
+
+async function clearInline(msg: TelegramBot.Message) {
+    await main.core.editMessageReplyMarkup(null as unknown as TelegramBot.InlineKeyboardMarkup, { chat_id: msg.chat.id, message_id: msg.message_id })
 }
 
 async function sendPoll(question: string, chatID: number, pollOptions: string[], options: TelegramBot.SendPollOptions | undefined = undefined): Promise<TelegramBot.Message> {
