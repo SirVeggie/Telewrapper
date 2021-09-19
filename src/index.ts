@@ -278,7 +278,10 @@ async function sendError(text: string, error: any = null): Promise<TelegramBot.M
     if (main.debugChat == 0)
         return;
     const stack = error?.stack ? '\n\n' + error.stack : error ? '\n\n' + error : '';
-    return await main.core.sendMessage(main.debugChat, 'Error: ' + text + stack, { disable_notification: true });
+    const msg = await main.core.sendMessage(main.debugChat, 'Error: ' + text + stack, { disable_notification: true });
+    if (msg)
+        messageListAppend(msg);
+    return msg;
 }
 
 async function sendMessageBase(text: string, chatID: number, options?: TelegramBot.SendMessageOptions): Promise<TelegramBot.Message> {
@@ -391,7 +394,7 @@ function kButton(text: string): TelegramBot.KeyboardButton {
 function iButton(name: string, action: (query: TelegramBot.CallbackQuery) => string | void | Promise<void>): TelegramBot.InlineKeyboardButton {
     (iButton as any).counter = (iButton as any).counter || 0;
 
-    const data = 'btn_' + ++(iButton as any).counter;
+    const data = `btn_${++(iButton as any).counter}_t${new Date().getTime()}`;
     onButton(data, action);
     return { text: name, callback_data: data };
 }
@@ -420,11 +423,10 @@ async function replaceKeyboard(msg: TelegramBot.Message, keyboard: TelegramBot.I
     await main.core.editMessageReplyMarkup(keyboard, { chat_id: msg.chat.id, message_id: msg.message_id });
 }
 
-async function editMessage(msg: TelegramBot.Message, text: string, keyboard: TelegramBot.InlineKeyboardMarkup | undefined = undefined, markdown = false): Promise<TelegramBot.Message> {
-    const options: TelegramBot.EditMessageTextOptions = {};
+async function editMessage(msg: TelegramBot.Message, text: string, keyboard: TelegramBot.InlineKeyboardMarkup | undefined = undefined, options?: TelegramBot.EditMessageTextOptions): Promise<TelegramBot.Message> {
+    options = options ?? {};
     options.chat_id = msg.chat.id;
     options.message_id = msg.message_id;
-    options.parse_mode = markdown ? 'Markdown' : undefined;
     options.reply_markup = keyboard;
 
     const newmsg = await main.core.editMessageText(text, options);
