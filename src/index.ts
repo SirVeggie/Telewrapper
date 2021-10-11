@@ -54,10 +54,10 @@ const main = {
     continueFromStop,
 
     deleteIfMentioned,
-    onRegex,
-    onAny,
-    onButton,
     onCommand,
+    onRegex,
+    onButton,
+    onAny,
     extractCommand,
     isCommand,
     isRegex,
