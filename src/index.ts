@@ -381,7 +381,7 @@ function kButton(text: string): TelegramBot.KeyboardButton {
     return { text: text };
 }
 
-function iButton(name: string, action: (query: TelegramBot.CallbackQuery) => string | void | Promise<void>): TelegramBot.InlineKeyboardButton {
+function iButton(name: string, action: ButtonCallback): TelegramBot.InlineKeyboardButton {
     (iButton as any).counter = (iButton as any).counter || 0;
 
     const data = `btn_${++(iButton as any).counter}_t${new Date().getTime()}`;
