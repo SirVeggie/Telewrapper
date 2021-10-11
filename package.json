@@ -1,6 +1,6 @@
 {
   "name": "telewrapper",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "A higher level wrapper for the node telegram bot api",
   "author": "Veikka Pulsa",
   "license": "MIT",

@@ -3,12 +3,12 @@ import logger from './tools/logger';
 import { timer } from './tools/timer';
 
 //#region types
-export type CommandCallback = (msg: TelegramBot.Message) => void;
+export type CommandCallback = (msg: TelegramBot.Message, content: string) => void;
 export interface ICommand {
     command: string;
     chatIDs: number[];
     desc: string;
-    callback: CommandCallback;
+    callback: (msg: TelegramBot.Message) => void;
 }
 
 export type RegexCallback = (msg: TelegramBot.Message, result: RegExpExecArray) => void;
@@ -199,7 +199,7 @@ function onCommand(command: string, chatIDs: number[] | number, callback: Comman
     main.commandList[command.toLocaleLowerCase()] = { command: command, desc: desc, chatIDs: ids, callback: action };
 }
 
-function commandBase(chatIDs: number[] | number, callback: (msg: TelegramBot.Message, content: string) => void, msg: TelegramBot.Message) {
+function commandBase(chatIDs: number[] | number, callback: CommandCallback, msg: TelegramBot.Message) {
     if (!validCommand(msg, chatIDs))
         return;
     const content = msg.text?.replace(/[^ ]+ ?/, '') ?? '';
