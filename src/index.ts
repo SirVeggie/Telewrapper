@@ -3,37 +3,33 @@ import logger from './tools/logger';
 import { timer } from './tools/timer';
 
 //#region types
+export type CommandCallback = (msg: TelegramBot.Message) => void;
 export interface ICommand {
     command: string;
     chatIDs: number[];
     desc: string;
-    callback: (msg: TelegramBot.Message) => void;
+    callback: CommandCallback;
 }
 
-export interface IKeywordCmd {
-    keyword: string;
-    chatIDs: number[];
-    regex: RegExp;
-    desc: string;
-    callback: (msg: TelegramBot.Message) => void;
-}
-
+export type RegexCallback = (msg: TelegramBot.Message, result: RegExpExecArray) => void;
 export interface IRegexCmd {
-    command: string;
+    match: string;
     chatIDs: number[];
     regex: RegExp;
     desc: string;
-    callback: (msg: TelegramBot.Message) => void;
+    callback: RegexCallback;
 }
 
+export type AnyCallback = (msg: TelegramBot.Message, handled: boolean) => void;
 export interface IAnyCmd {
     chatIDs: number[];
-    callback: (msg: TelegramBot.Message) => void;
+    callback: AnyCallback;
 }
 
+export type ButtonCallback = (query: TelegramBot.CallbackQuery) => string | void | Promise<void>;
 export interface IButtonCmd {
     name: string;
-    callback: (query: TelegramBot.CallbackQuery) => string | void | Promise<void>;
+    callback: ButtonCallback;
 }
 //#endregion
 
@@ -48,10 +44,9 @@ const main = {
 
     commandList: {} as { [index: string]: ICommand; },
     buttonList: {} as { [index: string]: IButtonCmd; },
-    keywordList: [] as IKeywordCmd[],
-    regexCmdList: [] as IRegexCmd[],
-    messageList: [] as TelegramBot.Message[],
+    regexList: [] as IRegexCmd[],
     anyList: [] as IAnyCmd[],
+    messageList: [] as TelegramBot.Message[],
 
     //#region function exports
     start,
@@ -59,12 +54,13 @@ const main = {
     continueFromStop,
 
     deleteIfMentioned,
-    onKeyword,
+    onRegex,
     onAny,
     onButton,
     onCommand,
-    onRegexCommand,
     extractCommand,
+    isCommand,
+    isRegex,
 
     sendError,
     sendMessageBase,
@@ -121,51 +117,40 @@ function continueFromStop(): void {
 function botEventSubscriptions() {
     main.core.on('message', (msg: TelegramBot.Message) => {
         try {
+            let handled = false;
+
             // ignore special messages
             if (!msg.text) {
-                // ignore and delete pinned messages
-                if (msg.pinned_message)
-                    deleteMessage(msg);
-                return;
+                handled = true;
+            }
+
+            // check and call a command
+            const command = extractCommand(msg?.text ?? '').toLocaleLowerCase();
+            if (!handled && main.commandList[command]) {
+                deleteIfMentioned(msg);
+                main.commandList[command].callback(msg);
+                handled = true;
+            }
+
+            // check and call regex matches
+            if (!handled) {
+                for (const [key, value] of Object.entries(main.regexList)) {
+                    const result = value.regex.exec(msg.text!);
+                    if (!result)
+                        continue;
+                    deleteIfMentioned(msg);
+                    value.callback(msg, result);
+                    handled = true;
+                }
             }
 
             // call all Any commands
             main.anyList.forEach(c => {
                 if (c.chatIDs.includes(msg.chat.id)) {
-                    c.callback(msg);
+                    c.callback(msg, handled);
                 }
             });
 
-            // check and call a command
-            const command = extractCommand(msg.text).toLowerCase();
-
-            if (main.commandList[command]) {
-                deleteIfMentioned(msg);
-                main.commandList[command].callback(msg);
-                return;
-            }
-
-            // check and call regex command
-            if (msg.text && msg.text.charAt(0) == '/') {
-                for (let index = 0; index < main.regexCmdList.length; index++) {
-                    const cmd = main.regexCmdList[index];
-                    if (cmd.regex.exec(msg.text)) {
-                        deleteIfMentioned(msg);
-                        cmd.callback(msg);
-                        return;
-                    }
-                }
-
-                return;
-            }
-
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            for (const [key, value] of Object.entries(main.keywordList)) {
-                if (value.regex.exec(msg.text)) {
-                    value.callback(msg);
-                }
-            }
-            
         } catch (error) {
             sendError('message error', error);
         }
@@ -200,37 +185,7 @@ function botEventSubscriptions() {
     });
 }
 
-function deleteIfMentioned(msg: TelegramBot.Message): void {
-    if (main.botInfo == null)
-        return;
-    if (msg.text?.includes('@' + main.botInfo.username) || msg.reply_to_message?.from?.username === main.botInfo.username) {
-        deleteMessage(msg);
-    }
-}
-
-function onKeyword(keyword: string, chatIDs: number[] | number, callback: (msg: TelegramBot.Message) => void, desc: string = ''): void {
-    const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
-    const match = new RegExp(keyword, 'i');
-    const action = (keywordBase as any).bind(null, chatIDs, callback);
-    main.keywordList.push({ keyword: keyword, desc: desc, chatIDs: ids, regex: match, callback: action });
-}
-
-function keywordBase(chatIDs: number[], callback: (msg: TelegramBot.Message) => void, msg: TelegramBot.Message) {
-    if (!validCommand(msg, chatIDs, true))
-        return;
-    callback(msg);
-}
-
-function onAny(chatIDs: number[] | number, callback: (msg: TelegramBot.Message) => void): void {
-    const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
-    main.anyList.push({ chatIDs: ids, callback: callback });
-}
-
-function onButton(name: string, callback: (query: TelegramBot.CallbackQuery) => string | void | Promise<void>): void {
-    main.buttonList[name] = { name: name, callback: callback };
-}
-
-function onCommand(command: string, chatIDs: number[] | number, callback: (msg: TelegramBot.Message, content: string) => void, desc: string): void {
+function onCommand(command: string, chatIDs: number[] | number, callback: CommandCallback, desc: string): void {
     if (command.match('\\W+')) {
         logger.log('Command \'' + command + '\' has illegal characters');
         return;
@@ -251,17 +206,26 @@ function commandBase(chatIDs: number[] | number, callback: (msg: TelegramBot.Mes
     callback(msg, content);
 }
 
-function onRegexCommand(command: string, chatIDs: number[] | number, callback: (msg: TelegramBot.Message) => void, desc?: string): void {
+function onRegex(match: string, chatIDs: number[] | number, callback: RegexCallback, desc: string = ''): void {
     const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
-    const action = regexCommandBase.bind(null, ids, callback);
-    const regex = new RegExp('^/' + command, 'i');
-    main.regexCmdList.push({ command: command, regex: regex, desc: desc ?? '', chatIDs: ids, callback: action });
+    const regex = new RegExp(match, 'i');
+    const action = (regexBase as any).bind(null, chatIDs, callback);
+    main.regexList.push({ match: match, desc: desc, chatIDs: ids, regex: regex, callback: action });
 }
 
-function regexCommandBase(chatIDs: number[], callback: (msg: TelegramBot.Message) => void, msg: TelegramBot.Message) {
-    if (!validCommand(msg, chatIDs))
+function regexBase(chatIDs: number[], callback: RegexCallback, msg: TelegramBot.Message, result: RegExpExecArray) {
+    if (!validCommand(msg, chatIDs, true))
         return;
-    callback(msg);
+    callback(msg, result);
+}
+
+function onButton(name: string, callback: ButtonCallback): void {
+    main.buttonList[name] = { name: name, callback: callback };
+}
+
+function onAny(chatIDs: number[] | number, callback: AnyCallback): void {
+    const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
+    main.anyList.push({ chatIDs: ids, callback: callback });
 }
 
 function extractCommand(text: string): string {
@@ -269,6 +233,32 @@ function extractCommand(text: string): string {
     if (res)
         return res[0].substring(1);
     return '';
+}
+
+function isCommand(msg: TelegramBot.Message): boolean {
+    if (msg.text)
+        return !!main.commandList[extractCommand(msg.text).toLocaleLowerCase()];
+    return false;
+}
+
+function isRegex(msg: TelegramBot.Message): boolean {
+    if (!msg.text)
+        return false;
+    for (const [key, value] of Object.entries(main.regexList)) {
+        if (value.regex.exec(msg.text)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function deleteIfMentioned(msg: TelegramBot.Message): void {
+    if (main.botInfo == null)
+        return;
+    if (msg.text?.includes('@' + main.botInfo.username) || msg.reply_to_message?.from?.username === main.botInfo.username) {
+        deleteMessage(msg);
+    }
 }
 //#endregion
 
@@ -346,7 +336,7 @@ async function clearKeyboard(chatID: number, selective: boolean = false): Promis
 }
 
 async function clearInline(msg: TelegramBot.Message) {
-    await main.core.editMessageReplyMarkup(null as unknown as TelegramBot.InlineKeyboardMarkup, { chat_id: msg.chat.id, message_id: msg.message_id })
+    await main.core.editMessageReplyMarkup(null as unknown as TelegramBot.InlineKeyboardMarkup, { chat_id: msg.chat.id, message_id: msg.message_id });
 }
 
 async function sendPoll(question: string, chatID: number, pollOptions: string[], options: TelegramBot.SendPollOptions | undefined = undefined): Promise<TelegramBot.Message> {
@@ -472,7 +462,7 @@ function messageEqual(msg1: TelegramBot.Message, msg2: TelegramBot.Message): boo
     return msg1.chat.id == msg2.chat.id && msg1.message_id == msg2.message_id;
 }
 
-function validCommand(msg: TelegramBot.Message, chatIDs: number[] | number, keyword = false): boolean {
+function validCommand(msg: TelegramBot.Message, chatIDs: number[] | number, regex = false): boolean {
     if (msg.date * 1000 < main.startTime.getTime()) {
         logger.log('Not executing queued up command');
         return false;
@@ -483,7 +473,7 @@ function validCommand(msg: TelegramBot.Message, chatIDs: number[] | number, keyw
 
     if (ids.includes(msg.chat.id))
         return true;
-    if (valid && keyword)
+    if (valid && regex)
         return false;
     reportInvalidCommand(msg, valid);
     return false;
