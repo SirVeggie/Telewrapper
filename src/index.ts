@@ -417,7 +417,7 @@ async function editMessage(msg: TelegramBot.Message, text: string, keyboard: Tel
     options = options ?? {};
     options.chat_id = msg.chat.id;
     options.message_id = msg.message_id;
-    options.reply_markup = keyboard;
+    options.reply_markup = keyboard === undefined ? msg.reply_markup : keyboard;
 
     const newmsg = await main.core.editMessageText(text, options);
     return newmsg as TelegramBot.Message;
