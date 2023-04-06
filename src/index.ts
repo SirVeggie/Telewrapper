@@ -32,9 +32,9 @@ export interface IButtonCmd {
 }
 //#endregion
 
-export default class BotWrapper {
+export default class TeleWrapper {
     private validChats = [] as number[];
-    
+
     public core = null as unknown as TelegramBot;
     public botInfo = null as unknown as TelegramBot.User;
     public startTime = new Date();
@@ -45,6 +45,7 @@ export default class BotWrapper {
     public buttonList = {} as { [index: string]: IButtonCmd; };
     public regexList = [] as IRegexCmd[];
     public anyList = [] as IAnyCmd[];
+    public audioList = [] as IAnyCmd[];
     public messageList = [] as TelegramBot.Message[];
 
     constructor(api_key: string, ctorOptions?: TelegramBot.ConstructorOptions) {
@@ -69,7 +70,7 @@ export default class BotWrapper {
     public continueFromStop(): void {
         this.core.startPolling();
     }
-    
+
     public setDebugChat(chatID: number): void {
         this.debugChat = chatID;
     }
@@ -80,21 +81,16 @@ export default class BotWrapper {
             try {
                 let handled = false;
 
-                // ignore special messages
-                if (!msg.text) {
-                    handled = true;
-                }
-
                 // check and call a command
                 const command = this.extractCommand(msg?.text ?? '').toLocaleLowerCase();
-                if (!handled && this.commandList[command]) {
+                if (msg.text && this.commandList[command]) {
                     this.deleteIfMentioned(msg);
                     this.commandList[command].callback(msg);
                     handled = true;
                 }
 
                 // check and call regex matches
-                if (!handled) {
+                if (msg.text && !handled) {
                     for (const [key, value] of Object.entries(this.regexList)) {
                         const result = value.regex.exec(msg.text!);
                         if (!result)
@@ -105,12 +101,23 @@ export default class BotWrapper {
                     }
                 }
 
+                // call all audio commands
+                if (msg.voice || msg.audio) {
+                    this.audioList.forEach(c => {
+                        if (c.chatIDs.includes(msg.chat.id)) {
+                            c.callback(msg, handled);
+                        }
+                    });
+                }
+
                 // call all Any commands
-                this.anyList.forEach(c => {
-                    if (c.chatIDs.includes(msg.chat.id)) {
-                        c.callback(msg, handled);
-                    }
-                });
+                if (msg.text) {
+                    this.anyList.forEach(c => {
+                        if (c.chatIDs.includes(msg.chat.id)) {
+                            c.callback(msg, handled);
+                        }
+                    });
+                }
 
             } catch (error) {
                 this.sendError('message error', error);
@@ -160,7 +167,7 @@ export default class BotWrapper {
         }
 
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
-        const action = this.commandBase.bind(null, ids, callback);
+        const action = this.commandBase.bind(this, ids, callback);
         this.commandList[command.toLocaleLowerCase()] = { command: command, desc: desc, chatIDs: ids, callback: action };
     }
 
@@ -173,7 +180,7 @@ export default class BotWrapper {
 
     public onRegex(regex: RegExp, chatIDs: number[] | number, callback: RegexCallback, desc: string = ''): void {
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
-        const action = (this.regexBase as any).bind(null, chatIDs, callback);
+        const action = (this.regexBase as any).bind(this, chatIDs, callback);
         this.regexList.push({ regex: regex, desc: desc, chatIDs: ids, callback: action });
     }
 
@@ -190,6 +197,11 @@ export default class BotWrapper {
     public onAny(chatIDs: number[] | number, callback: AnyCallback): void {
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
         this.anyList.push({ chatIDs: ids, callback: callback });
+    }
+
+    public onAudio(chatIDs: number[] | number, callback: AnyCallback): void {
+        const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
+        this.audioList.push({ chatIDs: ids, callback: callback });
     }
 
     public extractCommand(text: string): string {
@@ -227,7 +239,7 @@ export default class BotWrapper {
     //#endregion
 
     //#region messaging
-    async sendError(text: string, error: any = null): Promise<TelegramBot.Message | undefined> {
+    public async sendError(text: string, error: any = null): Promise<TelegramBot.Message | undefined> {
         logger.log('Error: ' + text, error);
         if (this.debugChat == 0)
             return;
@@ -238,7 +250,7 @@ export default class BotWrapper {
         return msg;
     }
 
-    async sendMessageBase(text: string, chatID: number, options?: TelegramBot.SendMessageOptions): Promise<TelegramBot.Message> {
+    public async sendMessageBase(text: string, chatID: number, options?: TelegramBot.SendMessageOptions): Promise<TelegramBot.Message> {
         if (this.getValidChats().includes(chatID)) {
             const msg = await this.core.sendMessage(chatID, text, options);
             this.messageListAppend(msg);
@@ -249,27 +261,27 @@ export default class BotWrapper {
         }
     }
 
-    async sendMessage(text: string, chatID: number, notification = true): Promise<TelegramBot.Message> {
+    public async sendMessage(text: string, chatID: number, notification = true): Promise<TelegramBot.Message> {
         const options: TelegramBot.SendMessageOptions = {};
         options.disable_notification = !notification;
         return await this.sendMessageBase(text, chatID, options);
     }
 
-    async sendMarkdown(text: string, chatID: number, notification = true): Promise<TelegramBot.Message> {
+    public async sendMarkdown(text: string, chatID: number, notification = true): Promise<TelegramBot.Message> {
         const options: TelegramBot.SendMessageOptions = {};
         options.parse_mode = 'Markdown';
         options.disable_notification = !notification;
         return await this.sendMessageBase(text, chatID, options);
     }
 
-    async sendMarkdownV2(text: string, chatID: number, notification = true): Promise<TelegramBot.Message> {
+    public async sendMarkdownV2(text: string, chatID: number, notification = true): Promise<TelegramBot.Message> {
         const options: TelegramBot.SendMessageOptions = {};
         options.parse_mode = 'MarkdownV2';
         options.disable_notification = !notification;
         return await this.sendMessageBase(text, chatID, options);
     }
 
-    async sendReply(text: string, chatID: number, reply_id: number, markdown = false): Promise<TelegramBot.Message> {
+    public async sendReply(text: string, chatID: number, reply_id: number, markdown = false): Promise<TelegramBot.Message> {
         if (typeof chatID === 'object') {
             this.sendError('sendReply() cannot accept multiple chat ids');
             throw new Error('sendReply() cannot accept multiple chat ids');
@@ -281,7 +293,7 @@ export default class BotWrapper {
         return await this.sendMessageBase(text, chatID, options);
     }
 
-    async sendKeyboard(text: string, chatID: number, keyboard_obj: TelegramBot.InlineKeyboardMarkup | TelegramBot.ReplyKeyboardMarkup | TelegramBot.ReplyKeyboardRemove, notification = false, markdown = false): Promise<TelegramBot.Message> {
+    public async sendKeyboard(text: string, chatID: number, keyboard_obj: TelegramBot.InlineKeyboardMarkup | TelegramBot.ReplyKeyboardMarkup | TelegramBot.ReplyKeyboardRemove, notification = false, markdown = false): Promise<TelegramBot.Message> {
         const options: TelegramBot.SendMessageOptions = {};
         options.parse_mode = markdown ? 'Markdown' : undefined;
         options.reply_markup = keyboard_obj;
@@ -289,7 +301,7 @@ export default class BotWrapper {
         return await this.sendMessageBase(text, chatID, options);
     }
 
-    async clearKeyboard(chatID: number, selective: boolean = false): Promise<void> {
+    public async clearKeyboard(chatID: number, selective: boolean = false): Promise<void> {
         const options: TelegramBot.SendMessageOptions = {};
         options.disable_notification = true;
         options.reply_markup = this.newKeyboard(null, undefined, true);
@@ -299,11 +311,11 @@ export default class BotWrapper {
         await this.deleteMessage(msg);
     }
 
-    async clearInline(msg: TelegramBot.Message) {
+    public async clearInline(msg: TelegramBot.Message) {
         await this.core.editMessageReplyMarkup(null as unknown as TelegramBot.InlineKeyboardMarkup, { chat_id: msg.chat.id, message_id: msg.message_id });
     }
 
-    async sendPoll(question: string, chatID: number, pollOptions: string[], options: TelegramBot.SendPollOptions | undefined = undefined): Promise<TelegramBot.Message> {
+    public async sendPoll(question: string, chatID: number, pollOptions: string[], options: TelegramBot.SendPollOptions | undefined = undefined): Promise<TelegramBot.Message> {
         if (typeof chatID === 'object') {
             this.sendError('sendPoll() cannot accept multiple chat ids');
             throw new Error('sendPoll() cannot accept multiple chat ids');
@@ -319,7 +331,7 @@ export default class BotWrapper {
         return msg;
     }
 
-    async sendDice(chatID: number, type: 'dice' | 'slot' | 'basket' | 'soccer' | 'target' = 'dice'): Promise<TelegramBot.Message> {
+    public async sendDice(chatID: number, type: 'dice' | 'slot' | 'basket' | 'soccer' | 'target' = 'dice'): Promise<TelegramBot.Message> {
         const options: TelegramBot.SendDiceOptions = { disable_notification: true };
 
         if (type == 'slot') {
@@ -341,11 +353,11 @@ export default class BotWrapper {
     //#endregion
 
     //#region messaging help
-    kButton(text: string): TelegramBot.KeyboardButton {
+    public kButton(text: string): TelegramBot.KeyboardButton {
         return { text: text };
     }
 
-    iButton(name: string, action: ButtonCallback): TelegramBot.InlineKeyboardButton {
+    public iButton(name: string, action: ButtonCallback): TelegramBot.InlineKeyboardButton {
         (this.iButton as any).counter = (this.iButton as any).counter || 0;
 
         const data = `btn_${++(this.iButton as any).counter}_t${new Date().getTime()}`;
@@ -353,7 +365,7 @@ export default class BotWrapper {
         return { text: name, callback_data: data };
     }
 
-    newKeyboard(buttons: TelegramBot.KeyboardButton[][] | null, one_time = false, selective = false, resize = true): TelegramBot.ReplyKeyboardMarkup | TelegramBot.ReplyKeyboardRemove {
+    public newKeyboard(buttons: TelegramBot.KeyboardButton[][] | null, one_time = false, selective = false, resize = true): TelegramBot.ReplyKeyboardMarkup | TelegramBot.ReplyKeyboardRemove {
         if (!buttons) {
             const kb: TelegramBot.ReplyKeyboardRemove = { remove_keyboard: true };
             return kb;
@@ -369,15 +381,15 @@ export default class BotWrapper {
         return kb;
     }
 
-    newInline(buttons: TelegramBot.InlineKeyboardButton[][]): TelegramBot.InlineKeyboardMarkup {
+    public newInline(buttons: TelegramBot.InlineKeyboardButton[][]): TelegramBot.InlineKeyboardMarkup {
         return { inline_keyboard: buttons };
     }
 
-    async replaceKeyboard(msg: TelegramBot.Message, keyboard: TelegramBot.InlineKeyboardMarkup): Promise<void> {
+    public async replaceKeyboard(msg: TelegramBot.Message, keyboard: TelegramBot.InlineKeyboardMarkup): Promise<void> {
         await this.core.editMessageReplyMarkup(keyboard, { chat_id: msg.chat.id, message_id: msg.message_id });
     }
 
-    async editMessage(msg: TelegramBot.Message, text: string, keyboard: TelegramBot.InlineKeyboardMarkup | undefined = undefined, options?: TelegramBot.EditMessageTextOptions): Promise<TelegramBot.Message> {
+    public async editMessage(msg: TelegramBot.Message, text: string, keyboard: TelegramBot.InlineKeyboardMarkup | undefined = undefined, options?: TelegramBot.EditMessageTextOptions): Promise<TelegramBot.Message> {
         options = options ?? {};
         options.chat_id = msg.chat.id;
         options.message_id = msg.message_id;
@@ -387,7 +399,7 @@ export default class BotWrapper {
         return newmsg as TelegramBot.Message;
     }
 
-    async deleteMessage(msg: TelegramBot.Message | TelegramBot.Message[] | undefined): Promise<void> {
+    public async deleteMessage(msg: TelegramBot.Message | TelegramBot.Message[] | undefined): Promise<void> {
         const list = msg as TelegramBot.Message[];
         const single = msg as TelegramBot.Message;
 
@@ -400,7 +412,7 @@ export default class BotWrapper {
         }
     }
 
-    async clearMessages(chatIDs: number[] | number, exclude_msgs: TelegramBot.Message[] | null = null): Promise<void> {
+    public async clearMessages(chatIDs: number[] | number, exclude_msgs: TelegramBot.Message[] | null = null): Promise<void> {
         const idList: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
         const newList: TelegramBot.Message[] = [];
         const actions: Promise<void>[] = [];
@@ -422,11 +434,11 @@ export default class BotWrapper {
         this.messageList = newList;
     }
 
-    messageEqual(msg1: TelegramBot.Message, msg2: TelegramBot.Message): boolean {
+    public messageEqual(msg1: TelegramBot.Message, msg2: TelegramBot.Message): boolean {
         return msg1.chat.id == msg2.chat.id && msg1.message_id == msg2.message_id;
     }
 
-    validCommand(msg: TelegramBot.Message, chatIDs: number[] | number, regex = false): boolean {
+    public validCommand(msg: TelegramBot.Message, chatIDs: number[] | number, regex = false): boolean {
         if (msg.date * 1000 < this.startTime.getTime()) {
             logger.log('Not executing queued up command');
             return false;
@@ -443,7 +455,7 @@ export default class BotWrapper {
         return false;
     }
 
-    reportInvalidCommand(msg: TelegramBot.Message, validChat: boolean): void {
+    private reportInvalidCommand(msg: TelegramBot.Message, validChat: boolean): void {
         if (validChat) {
             const user = msg.from ? `${msg.from.first_name} ${msg.from.last_name ?? '(no surname)'} | ${msg.from.username ?? '(no username)'}` : 'Unknown';
             const start = 'Received command from a chat that doesn\'t support it: ';
@@ -463,22 +475,22 @@ export default class BotWrapper {
     //#endregion
 
     //#region tools
-    messageListAppend(msg: TelegramBot.Message) {
+    private messageListAppend(msg: TelegramBot.Message) {
         this.messageList.push(msg);
         if (this.messageList.length >= this.messageListLength) {
             this.messageList = this.messageList.slice(this.messageList.length - this.messageListLength / 10, this.messageList.length);
         }
     }
 
-    addValidChat(chatID: number): void {
+    public addValidChat(chatID: number): void {
         if (!this.validChats.includes(chatID)) {
             this.validChats.push(chatID);
         } else {
             this.sendError('tried to add duplicate valid chat');
         }
     }
-    
-    removeValidChat(chatID: number): void {
+
+    public removeValidChat(chatID: number): void {
         const index = this.validChats.indexOf(chatID);
         if (index != -1) {
             this.validChats.splice(index, 1);
@@ -486,12 +498,12 @@ export default class BotWrapper {
             this.sendError('tried to remove non-existing valid chat');
         }
     }
-    
-    getValidChats(): number[] {
+
+    public getValidChats(): number[] {
         return [this.debugChat, ...this.validChats];
     }
 
-    botRunningTime(): string {
+    public botRunningTime(): string {
         const passed = (new Date().getTime() - this.startTime.getTime()) / 1000;
         const hours = Math.floor(passed / 3600);
         const minutes = Math.floor(passed % 3600 / 60);
