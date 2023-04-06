@@ -25,6 +25,11 @@ export interface IAnyCmd {
     callback: AnyCallback;
 }
 
+export type InvalidCallback = (msg: TelegramBot.Message, handled: boolean) => boolean;
+export interface IInvalidCmd {
+    callback: InvalidCallback;
+}
+
 export type ButtonCallback = (query: TelegramBot.CallbackQuery) => string | void | Promise<void>;
 export interface IButtonCmd {
     name: string;
@@ -46,6 +51,7 @@ export default class TeleWrapper {
     public regexList = [] as IRegexCmd[];
     public anyList = [] as IAnyCmd[];
     public audioList = [] as IAnyCmd[];
+    public invalidList = [] as IInvalidCmd[];
     public messageList = [] as TelegramBot.Message[];
 
     constructor(api_key: string, ctorOptions?: TelegramBot.ConstructorOptions) {
@@ -202,6 +208,10 @@ export default class TeleWrapper {
     public onAudio(chatIDs: number[] | number, callback: AnyCallback): void {
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
         this.audioList.push({ chatIDs: ids, callback: callback });
+    }
+
+    public onInvalid(callback: InvalidCallback): void {
+        this.invalidList.push({ callback });
     }
 
     public extractCommand(text: string): string {
@@ -451,7 +461,17 @@ export default class TeleWrapper {
             return true;
         if (valid && regex)
             return false;
-        this.reportInvalidCommand(msg, valid);
+
+        let handled = false;
+        if (!valid) {
+            // call all invalid commands
+            this.invalidList.forEach(c => {
+                handled = c.callback(msg, handled) || handled;
+            });
+        }
+
+        if (!handled)
+            this.reportInvalidCommand(msg, valid);
         return false;
     }
 
