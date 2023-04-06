@@ -162,8 +162,21 @@ export default class TeleWrapper {
             }
         });
     }
+    
+    private onBase(chatIDs: number[] | number) {
+        const idList: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
+        
+        const valids = this.getValidChats();
+        for (const id of idList) {
+            if (!valids.includes(id)) {
+                this.addValidChat(id);
+            }
+        }
+    }
 
     public onCommand(command: string, chatIDs: number[] | number, callback: CommandCallback, desc: string): void {
+        this.onBase(chatIDs);
+        
         if (command.match('\\W+')) {
             logger.log('Command \'' + command + '\' has illegal characters');
             return;
@@ -185,6 +198,8 @@ export default class TeleWrapper {
     }
 
     public onRegex(regex: RegExp, chatIDs: number[] | number, callback: RegexCallback, desc: string = ''): void {
+        this.onBase(chatIDs);
+        
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
         const action = (this.regexBase as any).bind(this, chatIDs, callback);
         this.regexList.push({ regex: regex, desc: desc, chatIDs: ids, callback: action });
@@ -201,11 +216,15 @@ export default class TeleWrapper {
     }
 
     public onAny(chatIDs: number[] | number, callback: AnyCallback): void {
+        this.onBase(chatIDs);
+        
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
         this.anyList.push({ chatIDs: ids, callback: callback });
     }
-
+    
     public onAudio(chatIDs: number[] | number, callback: AnyCallback): void {
+        this.onBase(chatIDs);
+        
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
         this.audioList.push({ chatIDs: ids, callback: callback });
     }
@@ -251,7 +270,7 @@ export default class TeleWrapper {
     //#region messaging
     public async sendError(text: string, error: any = null): Promise<TelegramBot.Message | undefined> {
         logger.log('Error: ' + text, error);
-        if (this.debugChat == 0)
+        if (this.debugChat === 0)
             return;
         const stack = error?.stack ? '\n\n' + error.stack : error ? '\n\n' + error : '';
         const msg = await this.core.sendMessage(this.debugChat, 'Error: ' + text + stack, { disable_notification: true });
@@ -459,6 +478,8 @@ export default class TeleWrapper {
 
         if (ids.includes(msg.chat.id))
             return true;
+        if (valid && ids.length === 0)
+            return true;
         if (valid && regex)
             return false;
 
@@ -481,13 +502,13 @@ export default class TeleWrapper {
             const start = 'Received command from a chat that doesn\'t support it: ';
             const end = '\nUser: ' + user + '\nMessage: ' + msg.text;
 
-            if (this.debugChat != 0)
+            if (this.debugChat !== 0)
                 this.sendMessage(start + JSON.stringify(msg.chat) + end, this.debugChat);
             logger.log(start + end, msg.chat);
         } else {
             const start = 'Received message from unregistered chat: ';
             const end = '\nMessage: ' + msg.text;
-            if (this.debugChat != 0)
+            if (this.debugChat !== 0)
                 this.sendMessage(start + JSON.stringify(msg.chat) + end, this.debugChat);
             logger.log(start + end, msg.chat);
         }
@@ -520,6 +541,8 @@ export default class TeleWrapper {
     }
 
     public getValidChats(): number[] {
+        if (this.debugChat === 0)
+            return this.validChats;
         return [this.debugChat, ...this.validChats];
     }
 
