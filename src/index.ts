@@ -270,7 +270,7 @@ export default class TeleWrapper {
     //#region messaging
     public async sendError(text: string, error: any = null): Promise<TelegramBot.Message | undefined> {
         logger.log('Error: ' + text, error);
-        if (this.debugChat === 0)
+        if (this.debugChat == 0)
             return;
         const stack = error?.stack ? '\n\n' + error.stack : error ? '\n\n' + error : '';
         const msg = await this.core.sendMessage(this.debugChat, 'Error: ' + text + stack, { disable_notification: true });
@@ -502,13 +502,13 @@ export default class TeleWrapper {
             const start = 'Received command from a chat that doesn\'t support it: ';
             const end = '\nUser: ' + user + '\nMessage: ' + msg.text;
 
-            if (this.debugChat !== 0)
+            if (this.debugChat != 0)
                 this.sendMessage(start + JSON.stringify(msg.chat) + end, this.debugChat);
             logger.log(start + end, msg.chat);
         } else {
             const start = 'Received message from unregistered chat: ';
             const end = '\nMessage: ' + msg.text;
-            if (this.debugChat !== 0)
+            if (this.debugChat != 0)
                 this.sendMessage(start + JSON.stringify(msg.chat) + end, this.debugChat);
             logger.log(start + end, msg.chat);
         }
@@ -524,7 +524,7 @@ export default class TeleWrapper {
     }
 
     public addValidChat(chatID: number): void {
-        if (chatID === 0)
+        if (chatID == 0)
             return;
         if (!this.validChats.includes(chatID)) {
             this.validChats.push(chatID);
@@ -543,7 +543,7 @@ export default class TeleWrapper {
     }
 
     public getValidChats(): number[] {
-        if (this.debugChat === 0)
+        if (this.debugChat == 0)
             return this.validChats;
         return [this.debugChat, ...this.validChats];
     }
