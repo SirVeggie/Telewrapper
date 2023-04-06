@@ -524,6 +524,8 @@ export default class TeleWrapper {
     }
 
     public addValidChat(chatID: number): void {
+        if (chatID === 0)
+            return;
         if (!this.validChats.includes(chatID)) {
             this.validChats.push(chatID);
         } else {
