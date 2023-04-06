@@ -11,11 +11,10 @@ export interface ICommand {
     callback: (msg: TelegramBot.Message) => void;
 }
 
-export type RegexCallback = (msg: TelegramBot.Message, result: RegExpExecArray) => void;
+export type RegexCallback = (msg: TelegramBot.Message, handled: boolean, result: RegExpExecArray) => void;
 export interface IRegexCmd {
-    match: string;
-    chatIDs: number[];
     regex: RegExp;
+    chatIDs: number[];
     desc: string;
     callback: RegexCallback;
 }
@@ -139,7 +138,7 @@ function botEventSubscriptions() {
                     if (!result)
                         continue;
                     deleteIfMentioned(msg);
-                    value.callback(msg, result);
+                    value.callback(msg, handled, result);
                     handled = true;
                 }
             }
@@ -206,17 +205,16 @@ function commandBase(chatIDs: number[] | number, callback: CommandCallback, msg:
     callback(msg, content);
 }
 
-function onRegex(match: string, chatIDs: number[] | number, callback: RegexCallback, desc: string = ''): void {
+function onRegex(regex: RegExp, chatIDs: number[] | number, callback: RegexCallback, desc: string = ''): void {
     const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
-    const regex = new RegExp(match, 'i');
     const action = (regexBase as any).bind(null, chatIDs, callback);
-    main.regexList.push({ match: match, desc: desc, chatIDs: ids, regex: regex, callback: action });
+    main.regexList.push({ regex: regex, desc: desc, chatIDs: ids, callback: action });
 }
 
-function regexBase(chatIDs: number[], callback: RegexCallback, msg: TelegramBot.Message, result: RegExpExecArray) {
+function regexBase(chatIDs: number[], callback: RegexCallback, msg: TelegramBot.Message, handled: boolean, result: RegExpExecArray) {
     if (!validCommand(msg, chatIDs, true))
         return;
-    callback(msg, result);
+    callback(msg, handled, result);
 }
 
 function onButton(name: string, callback: ButtonCallback): void {
