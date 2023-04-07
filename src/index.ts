@@ -172,7 +172,7 @@ export default class TeleWrapper {
         }
     }
 
-    public onCommand(command: string, chatIDs: number[] | number, callback: CommandCallback, desc: string): void {
+    public onCommand(command: string, chatIDs: number[] | number, callback: CommandCallback, desc?: string): void {
         this.onBase(chatIDs);
 
         if (command.match('\\W+')) {
@@ -185,7 +185,7 @@ export default class TeleWrapper {
 
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
         const action = this.commandBase.bind(this, ids, callback);
-        this.commandList[command.toLocaleLowerCase()] = { command: command, desc: desc, chatIDs: ids, callback: action };
+        this.commandList[command.toLocaleLowerCase()] = { command: command, desc: desc ?? '(empty)', chatIDs: ids, callback: action };
     }
 
     private commandBase(chatIDs: number[] | number, callback: CommandCallback, msg: TelegramBot.Message) {
@@ -424,6 +424,18 @@ export default class TeleWrapper {
 
         const newmsg = await this.core.editMessageText(text, options);
         return newmsg as TelegramBot.Message;
+    }
+    
+    public async editMarkdown(msg: TelegramBot.Message, text: string, keyboard: TelegramBot.InlineKeyboardMarkup | undefined = undefined, options?: TelegramBot.EditMessageTextOptions): Promise<TelegramBot.Message> {
+        options = options ?? {};
+        options.parse_mode = 'Markdown';
+        return await this.editMessage(msg, text, keyboard, options);
+    }
+    
+    public async editMarkdownV2(msg: TelegramBot.Message, text: string, keyboard: TelegramBot.InlineKeyboardMarkup | undefined = undefined, options?: TelegramBot.EditMessageTextOptions): Promise<TelegramBot.Message> {
+        options = options ?? {};
+        options.parse_mode = 'MarkdownV2';
+        return await this.editMessage(msg, text, keyboard, options);
     }
 
     public async deleteMessage(msg: TelegramBot.Message | TelegramBot.Message[] | undefined): Promise<void> {
