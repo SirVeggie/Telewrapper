@@ -110,20 +110,18 @@ export default class TeleWrapper {
                 // call all audio commands
                 if (msg.voice || msg.audio) {
                     this.audioList.forEach(c => {
-                        if (c.chatIDs.includes(msg.chat.id)) {
+                        if (c.chatIDs.includes(msg.chat.id) || !c.chatIDs.length) {
                             c.callback(msg, handled);
                         }
                     });
                 }
 
                 // call all Any commands
-                if (msg.text) {
-                    this.anyList.forEach(c => {
-                        if (c.chatIDs.includes(msg.chat.id)) {
-                            c.callback(msg, handled);
-                        }
-                    });
-                }
+                this.anyList.forEach(c => {
+                    if (c.chatIDs.includes(msg.chat.id) || !c.chatIDs.length) {
+                        c.callback(msg, handled);
+                    }
+                });
 
             } catch (error) {
                 this.sendError('message error', error);
@@ -162,10 +160,10 @@ export default class TeleWrapper {
             }
         });
     }
-    
+
     private onBase(chatIDs: number[] | number) {
         const idList: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
-        
+
         const valids = this.getValidChats();
         for (const id of idList) {
             if (!valids.includes(id)) {
@@ -176,7 +174,7 @@ export default class TeleWrapper {
 
     public onCommand(command: string, chatIDs: number[] | number, callback: CommandCallback, desc: string): void {
         this.onBase(chatIDs);
-        
+
         if (command.match('\\W+')) {
             logger.log('Command \'' + command + '\' has illegal characters');
             return;
@@ -199,7 +197,7 @@ export default class TeleWrapper {
 
     public onRegex(regex: RegExp, chatIDs: number[] | number, callback: RegexCallback, desc: string = ''): void {
         this.onBase(chatIDs);
-        
+
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
         const action = (this.regexBase as any).bind(this, chatIDs, callback);
         this.regexList.push({ regex: regex, desc: desc, chatIDs: ids, callback: action });
@@ -217,14 +215,14 @@ export default class TeleWrapper {
 
     public onAny(chatIDs: number[] | number, callback: AnyCallback): void {
         this.onBase(chatIDs);
-        
+
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
         this.anyList.push({ chatIDs: ids, callback: callback });
     }
-    
+
     public onAudio(chatIDs: number[] | number, callback: AnyCallback): void {
         this.onBase(chatIDs);
-        
+
         const ids: number[] = typeof chatIDs === 'object' ? chatIDs : [chatIDs];
         this.audioList.push({ chatIDs: ids, callback: callback });
     }
